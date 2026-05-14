@@ -85,8 +85,22 @@ filtered out and the script falls through to the next tier:
 - `https://withjoy.com/assets/public/marcom-prod/wedding-website-gallery/gallery_thumbnails/default_preview_images/`
 - `https://withjoy.com/assets/public/defaultwebsitephotos/`
 
+A candidate URL is also filtered out if its query string contains
+`isDefault=true` (e.g. `?isDefault=true` or `&...&isDefault=true`).
+
 If every tier is empty or filtered, the event is reported
 `skipped: no_source_photo`.
+
+## Image generation and margin
+
+The chosen source photo is sent to Gemini (Vertex AI, model
+`gemini-3.1-flash-image-preview`) at 3:4 aspect ratio with instructions to
+fill the frame edge-to-edge. The returned PNG is then post-processed with
+`sharp`: a proportional white border of `width * 0.1` is added on each
+horizontal side and `height * 0.1` on each vertical side, so the final
+image keeps the 3:4 aspect ratio with a generous, uniform margin around the
+artwork. Tune `MARGIN_FRACTION` at the top of
+`lib/generateStylizedImage.ts` to adjust the border.
 
 ## Console output
 

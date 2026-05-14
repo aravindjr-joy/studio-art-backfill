@@ -206,7 +206,16 @@ const DEFAULT_PHOTO_URL_PREFIXES: ReadonlyArray<string> = [
 ];
 
 export function isDefaultPlaceholderUrl(url: string): boolean {
-  return DEFAULT_PHOTO_URL_PREFIXES.some((prefix) => url.startsWith(prefix));
+  if (DEFAULT_PHOTO_URL_PREFIXES.some((prefix) => url.startsWith(prefix))) {
+    return true;
+  }
+  try {
+    const parsed = new URL(url);
+    if (parsed.searchParams.get('isDefault') === 'true') return true;
+  } catch {
+    // Not a parseable absolute URL; fall through.
+  }
+  return false;
 }
 
 export function extractSourcePhotoUrl(event: EventByIdResponse): SourcePhoto | null {
