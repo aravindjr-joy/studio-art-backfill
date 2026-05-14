@@ -217,6 +217,15 @@ const DEFAULT_PHOTO_URL_PREFIXES: ReadonlyArray<string> = [
   'https://withjoy.com/assets/public/defaultwebsitephotos/',
 ];
 
+const STOCK_PHOTO_FILENAME_PATTERNS: ReadonlyArray<RegExp> = [
+  /^classic_wedding_/i,
+];
+
+function pathBasename(pathname: string): string {
+  const idx = pathname.lastIndexOf('/');
+  return idx === -1 ? pathname : pathname.slice(idx + 1);
+}
+
 export function isDefaultPlaceholderUrl(url: string): boolean {
   if (DEFAULT_PHOTO_URL_PREFIXES.some((prefix) => url.startsWith(prefix))) {
     return true;
@@ -224,6 +233,8 @@ export function isDefaultPlaceholderUrl(url: string): boolean {
   try {
     const parsed = new URL(url);
     if (parsed.searchParams.get('isDefault') === 'true') return true;
+    const basename = pathBasename(parsed.pathname);
+    if (STOCK_PHOTO_FILENAME_PATTERNS.some((re) => re.test(basename))) return true;
   } catch {
     // Not a parseable absolute URL; fall through.
   }
