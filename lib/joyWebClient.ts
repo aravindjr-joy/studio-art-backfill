@@ -116,14 +116,14 @@ export class JoyWebClient {
     return data.eventById;
   }
 
-  async getEventMediaAssetIds(eventId: string): Promise<string[]> {
+  async getEventMediaItems(eventId: string): Promise<Array<{ mediaId: string; assetId: string; url: string }>> {
     const query = `query GetEventMediaForGeneratedPhoto($id: ID!) {
       eventById(id: $id) {
         id
         media {
           ... on MediaPhoto {
             id
-            photo { id assetId }
+            photo { id assetId url }
           }
         }
       }
@@ -133,8 +133,20 @@ export class JoyWebClient {
     }>(query, { id: eventId }, 'getEventMedia');
     const media = data.eventById?.media ?? [];
     return media
-      .map((m) => m?.photo?.assetId)
-      .filter((id): id is string => typeof id === 'string' && id.length > 0);
+      .map((m) => ({ mediaId: m?.id, assetId: m?.photo?.assetId, url: m?.photo?.url }))
+      .filter(
+        (m): m is { mediaId: string; assetId: string; url: string } =>
+          typeof m.mediaId === 'string' && m.mediaId.length > 0 &&
+          typeof m.assetId === 'string' && m.assetId.length > 0 &&
+          typeof m.url === 'string' && m.url.length > 0,
+      );
+  }
+
+  async deleteMedia(mediaId: string): Promise<void> {
+    const query = `mutation DeleteMediaForGeneratedPhoto($id: ID!) {
+      deleteMedia(id: $id)
+    }`;
+    await this.query<{ deleteMedia: null }>(query, { id: mediaId }, 'deleteMedia');
   }
 
   async getFilestackCredentials(): Promise<FilestackCredentials> {

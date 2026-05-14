@@ -44,6 +44,7 @@ const VALID_STYLES: ReadonlyArray<StyleID> = ['martoon', 'toon', 'doodle'];
 type CliArgs = {
   eventIds: string[];
   commit: boolean;
+  force: boolean;
   delayMs: number;
   styleId: StyleID;
   resultsOutput: string;
@@ -56,6 +57,7 @@ function parseArgs(): CliArgs {
   const argv = Bun.argv.slice(2);
   let eventIds: string[] = [];
   let commit = false;
+  let force = false;
   let delayMs = DEFAULT_DELAY_MS;
   let styleId: StyleID = DEFAULT_STYLE_ID;
   let resultsOutput = DEFAULT_RESULTS_OUTPUT;
@@ -67,6 +69,8 @@ function parseArgs(): CliArgs {
     const arg = argv[i];
     if (arg === '--commit') {
       commit = true;
+    } else if (arg === '--force') {
+      force = true;
     } else if (arg === '--event-ids') {
       const value = argv[++i];
       if (!value) throw new Error('--event-ids requires a value');
@@ -120,6 +124,7 @@ function parseArgs(): CliArgs {
   return {
     eventIds,
     commit,
+    force,
     delayMs,
     styleId,
     resultsOutput,
@@ -194,6 +199,7 @@ async function processEvent(
   eventId: string,
   styleId: StyleID,
   commit: boolean,
+  force: boolean,
   saveImagesTo: string | null,
 ): Promise<Outcome> {
   let event;
@@ -215,9 +221,9 @@ async function processEvent(
 
   const targetFilename = generatedFilenameSuffix(eventId);
 
-  let existingAssetIds: string[];
+  let existingMedia: Array<{ mediaId: string; assetId: string; url: string }>;
   try {
-    existingAssetIds = await client.getEventMediaAssetIds(eventId);
+    existingMedia = await client.getEventMediaItems(eventId);
   } catch (err) {
     return {
       eventId,
@@ -226,8 +232,32 @@ async function processEvent(
       reason: `fetch_event_media_failed: ${(err as Error).message}`,
     };
   }
-  if (existingAssetIds.some((id) => id.startsWith(GENERATED_FILENAME_PREFIX))) {
-    return { eventId, eventHandle, status: 'skipped', reason: 'already_generated' };
+  const priorGenerated = existingMedia.find((m) => m.assetId.startsWith(GENERATED_FILENAME_PREFIX));
+  if (priorGenerated) {
+    if (!force) {
+      return { eventId, eventHandle, status: 'skipped', reason: 'already_generated' };
+    }
+    if (!commit) {
+      console.log(
+        `${eventId}  [dry-run] would force-delete prior generated photo: mediaId=${priorGenerated.mediaId}  url=${priorGenerated.url}`,
+      );
+    } else {
+      try {
+        await client.deleteMedia(priorGenerated.mediaId);
+      } catch (err) {
+        return {
+          eventId,
+          eventHandle,
+          status: 'errored',
+          reason: `force_delete_failed: mediaId=${priorGenerated.mediaId} ${(err as Error).message}`,
+          sourcePhotoUrl: sourcePhoto.url,
+          sourcePhotoOrigin: sourcePhoto.source,
+        };
+      }
+      console.log(
+        `${eventId}  force-deleted prior generated photo: mediaId=${priorGenerated.mediaId}  url=${priorGenerated.url}`,
+      );
+    }
   }
 
   if (!commit) {
@@ -425,6 +455,7 @@ async function main() {
   const {
     eventIds,
     commit,
+    force,
     delayMs,
     styleId,
     resultsOutput,
@@ -455,7 +486,7 @@ async function main() {
     if (delayMs > 0) await sleep(delayMs);
     const eventId = eventIds[i]!;
     console.log(`\n────────── [${i + 1}/${eventIds.length}] ${eventId} ──────────`);
-    const outcome = await processEvent(client, eventId, styleId, commit, saveImagesTo);
+    const outcome = await processEvent(client, eventId, styleId, commit, force, saveImagesTo);
     outcomes.push(outcome);
     const handlePart = `  handle=${outcome.eventHandle ?? '-'}`;
     if (outcome.status === 'ok') {

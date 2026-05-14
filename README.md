@@ -13,6 +13,10 @@ existing photo in the event's gallery has an assetId starting with
 `studio-gouache-`, the event is reported `skipped: already_generated` and no
 new image is generated.
 
+Pass `--force` to override this — any existing photo whose `assetId` starts
+with `studio-gouache-` is deleted via the `deleteMedia` mutation first, then
+a fresh image is generated and uploaded.
+
 ## Install
 
 ```sh
@@ -58,6 +62,7 @@ bun run index.ts --file ./events.txt --commit --save-images-to ./gen-images
 | `--file PATH`       | —                | Path to a newline-delimited eventIds file.                  |
 | `--event-ids LIST`  | —                | Comma-separated eventIds (alternative to `--file`).         |
 | `--commit`          | dry-run          | Actually generate, upload, and save.                        |
+| `--force`           | off              | Delete any existing photo whose `assetId` starts with `studio-gouache-` before generating a new one. Combine with `--commit` to actually delete; in dry-run mode it just logs which mediaId/url would be deleted. |
 | `--delay-ms N`      | 2000             | Delay applied *before* processing each event.               |
 | `--style-id ID`     | `martoon`        | Gemini style (`martoon`, `toon`, `doodle`).                 |
 | `--results-output`  | `./results.txt`  | Output path for ok rows.                                    |
@@ -152,7 +157,7 @@ per-run `.txt` files get overwritten.
 - `errored`: `fetch_event_failed`, `fetch_event_media_failed`,
   `gemini_failed:<finishReason>`, `filestack_credentials_failed`,
   `filestack_upload_failed`, `upload_media_failed`, `rehost_poll_failed`,
-  `rehost_failed`, `rehost_not_completed`
+  `rehost_failed`, `rehost_not_completed`, `force_delete_failed`
 
 The three `rehost_*` reasons surface failures of the async media-service
 rehost step: `uploadMediaFromUrls` is asynchronous and we poll
