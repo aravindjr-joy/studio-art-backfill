@@ -136,6 +136,32 @@ function parseArgs(): CliArgs {
 
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
+const RUN_LOG_LINES: string[] = [];
+
+function logLine(line: string): void {
+  console.log(line);
+  RUN_LOG_LINES.push(line);
+}
+
+function logKV(key: string, value: string | number | null | undefined): void {
+  logLine(`  ${key}: ${value ?? '-'}`);
+}
+
+function logOutcomeResult(outcome: Outcome): void {
+  if (outcome.status === 'ok') {
+    const isDryRun = outcome.filestackUrl === '(dry-run)';
+    if (!isDryRun) {
+      logKV('filestack-url', outcome.filestackUrl);
+      logKV('media-photo-id', outcome.mediaPhotoId);
+      logKV('media-url', outcome.mediaUrl);
+    }
+    logKV('status', isDryRun ? 'ok (dry-run)' : 'ok');
+  } else {
+    logKV('status', outcome.status);
+    logKV('reason', outcome.reason);
+  }
+}
+
 const POLL_INITIAL_INTERVAL_MS = 1000;
 const POLL_MAX_INTERVAL_MS = 10_000;
 const POLL_BACKOFF = 1.2;
@@ -212,12 +238,14 @@ async function processEvent(
     return { eventId, eventHandle: null, status: 'skipped', reason: 'event_not_found' };
   }
   const eventHandle = event.website ?? null;
+  logKV('handle', eventHandle);
 
   const sourcePhoto = extractSourcePhotoUrl(event);
   if (!sourcePhoto) {
     return { eventId, eventHandle, status: 'skipped', reason: 'no_source_photo' };
   }
-  console.log(`${eventId}  handle=${eventHandle ?? '-'}  source-origin=${sourcePhoto.source}  source-url=${sourcePhoto.url}`);
+  logKV('source-origin', sourcePhoto.source);
+  logKV('source-url', sourcePhoto.url);
 
   const targetFilename = generatedFilenameSuffix(eventId);
 
@@ -238,9 +266,8 @@ async function processEvent(
       return { eventId, eventHandle, status: 'skipped', reason: 'already_generated' };
     }
     if (!commit) {
-      console.log(
-        `${eventId}  [dry-run] would force-delete prior generated photo: mediaId=${priorGenerated.mediaId}  url=${priorGenerated.url}`,
-      );
+      logKV('force-delete-dry-run-media-id', priorGenerated.mediaId);
+      logKV('force-delete-dry-run-url', priorGenerated.url);
     } else {
       try {
         await client.deleteMedia(priorGenerated.mediaId);
@@ -254,14 +281,13 @@ async function processEvent(
           sourcePhotoOrigin: sourcePhoto.source,
         };
       }
-      console.log(
-        `${eventId}  force-deleted prior generated photo: mediaId=${priorGenerated.mediaId}  url=${priorGenerated.url}`,
-      );
+      logKV('force-deleted-media-id', priorGenerated.mediaId);
+      logKV('force-deleted-url', priorGenerated.url);
     }
   }
 
   if (!commit) {
-    console.log(`[dry-run] ${eventId}  would-upload-as=${targetFilename}`);
+    logKV('dry-run-would-upload-as', targetFilename);
     return {
       eventId,
       eventHandle,
@@ -304,7 +330,7 @@ async function processEvent(
     mkdirSync(eventDir, { recursive: true });
     const diskPath = join(eventDir, targetFilename);
     writeFileSync(diskPath, buffer);
-    console.log(`${eventId}  saved-to-disk=${diskPath}`);
+    logKV('saved-to-disk', diskPath);
   }
 
   let credentials;
@@ -415,9 +441,11 @@ function buildRunSummary(args: {
   commit: boolean;
   styleId: StyleID;
   delayMs: number;
+  flags: string;
   outcomes: Outcome[];
+  logLines: string[];
 }): string {
-  const { startedAt, completedAt, commit, styleId, delayMs, outcomes } = args;
+  const { startedAt, completedAt, commit, styleId, delayMs, flags, outcomes, logLines } = args;
   const ok = outcomes.filter((o) => o.status === 'ok') as Extract<Outcome, { status: 'ok' }>[];
   const skipped = outcomes.filter((o) => o.status === 'skipped') as Extract<Outcome, { status: 'skipped' }>[];
   const errored = outcomes.filter((o) => o.status === 'errored') as Extract<Outcome, { status: 'errored' }>[];
@@ -426,6 +454,7 @@ function buildRunSummary(args: {
     `Completed: ${completedAt.toISOString()}`,
     `Duration:  ${((completedAt.getTime() - startedAt.getTime()) / 1000).toFixed(1)}s`,
     `Mode:      ${commit ? 'COMMIT' : 'DRY-RUN'}`,
+    `Flags:     ${flags || '(none)'}`,
     `Style:     ${styleId}`,
     `Delay:     ${delayMs}ms`,
     `Total:     ${outcomes.length}  ok=${ok.length}  skipped=${skipped.length}  errored=${errored.length}`,
@@ -447,6 +476,9 @@ function buildRunSummary(args: {
     const src = o.sourcePhotoUrl ? `  source-origin=${o.sourcePhotoOrigin}  source-url=${o.sourcePhotoUrl}` : '';
     lines.push(`  ${o.eventId}  handle=${o.eventHandle ?? '-'}  ${o.reason}${src}`);
   }
+  lines.push('', 'LOGS', '');
+  if (logLines.length === 0) lines.push('  (none)');
+  else lines.push(...logLines);
   return lines.join('\n') + '\n';
 }
 
@@ -485,23 +517,10 @@ async function main() {
   for (let i = 0; i < eventIds.length; i++) {
     if (delayMs > 0) await sleep(delayMs);
     const eventId = eventIds[i]!;
-    console.log(`\n────────── [${i + 1}/${eventIds.length}] ${eventId} ──────────`);
+    logLine(`\n────────── [${i + 1}/${eventIds.length}] ${eventId} ──────────`);
     const outcome = await processEvent(client, eventId, styleId, commit, force, saveImagesTo);
     outcomes.push(outcome);
-    const handlePart = `  handle=${outcome.eventHandle ?? '-'}`;
-    if (outcome.status === 'ok') {
-      console.log(
-        `${eventId}${handlePart}  ok       source-origin=${outcome.sourcePhotoOrigin}  filestack=${outcome.filestackUrl}  mediaPhotoId=${outcome.mediaPhotoId}  mediaUrl=${outcome.mediaUrl}`,
-      );
-    } else {
-      const sourceSuffix =
-        outcome.status === 'errored' && outcome.sourcePhotoUrl
-          ? `  source-origin=${outcome.sourcePhotoOrigin}  source-url=${outcome.sourcePhotoUrl}`
-          : '';
-      console.log(
-        `${eventId}${handlePart}  ${outcome.status.padEnd(8)} reason=${outcome.reason}${sourceSuffix}`,
-      );
-    }
+    logOutcomeResult(outcome);
   }
 
   const ok = outcomes.filter((o) => o.status === 'ok');
@@ -547,7 +566,16 @@ async function main() {
 
   mkdirSync(RUN_SUMMARIES_DIR, { recursive: true });
   const completedAt = new Date();
-  const summary = buildRunSummary({ startedAt, completedAt, commit, styleId, delayMs, outcomes });
+  const summary = buildRunSummary({
+    startedAt,
+    completedAt,
+    commit,
+    styleId,
+    delayMs,
+    flags: Bun.argv.slice(2).join(' '),
+    outcomes,
+    logLines: RUN_LOG_LINES,
+  });
   const summaryPath = join(
     RUN_SUMMARIES_DIR,
     `${startedAt.toISOString().replace(/[:.]/g, '-')}.txt`,
