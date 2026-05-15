@@ -165,6 +165,10 @@ mode (dry-run vs commit), style, delay, totals, and a per-event listing
 under OK / SKIPPED / ERRORED sections. Useful for keeping a history when the
 per-run `.txt` files get overwritten.
 
+`run-summaries/{ISO-timestamp}.html` — HTML report generated alongside the `.txt`
+file. Provides a formatted view of the run with sections for OK / SKIPPED / ERRORED
+events, including event details and inline logs. Open in a browser for easier review.
+
 ## Outcome reasons
 
 - `skipped`: `event_not_found`, `not_a_wedding_event`, `no_source_photo`, `already_generated`
