@@ -1,4 +1,4 @@
-# insert-ai-generated-photo-into-events
+# studio-art-backfill
 
 One-off backfill script: given a list of eventIds, fetch each event's main
 photo, generate a stylized cartoon via Gemini (Vertex AI), upload to Filestack,
