@@ -29,7 +29,7 @@ bun install
 | Var                          | Notes                                                                         |
 |------------------------------|-------------------------------------------------------------------------------|
 | `JOY_WEB_GRAPHQL_URL`        | joy-web GraphQL endpoint (e.g. `https://api-dev.withjoy.com/graphql`).        |
-| `JOY_WEB_AUTH_TOKEN`         | Operator's own bearer token ("impersonate yourself").                         |
+| `JOY_WEB_ID_TOKEN`           | Operator's ID token. Get it by logging in to `withjoy.com` and copying the value from `https://withjoy.com/authinfo`. The script exchanges it for a userJWT at startup via the `authenticateUser` query and uses that JWT as the bearer for all GraphQL calls. |
 | `GOOGLE_SERVICE_ACCOUNT_JSON`| Service account JSON for Vertex AI / Gemini (same as studio).                 |
 
 Filestack credentials are NOT in env — they are fetched per-run from joy-web's

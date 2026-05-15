@@ -11,6 +11,7 @@ import {
 import {
   extractSourcePhotoUrl,
   JoyWebClient,
+  exchangeIdTokenForUserJwt,
   type PhotoInput,
   type PhotoSource,
   type UploadMediaResponse,
@@ -25,9 +26,9 @@ const JOY_WEB_GRAPHQL_URL = z
   .url()
   .parse(Bun.env.JOY_WEB_GRAPHQL_URL);
 
-const JOY_WEB_AUTH_TOKEN = z
-  .string({ message: 'JOY_WEB_AUTH_TOKEN is required' })
-  .parse(Bun.env.JOY_WEB_AUTH_TOKEN);
+const JOY_WEB_ID_TOKEN = z
+  .string({ message: 'JOY_WEB_ID_TOKEN is required' })
+  .parse(Bun.env.JOY_WEB_ID_TOKEN);
 
 z.string({ message: 'GOOGLE_SERVICE_ACCOUNT_JSON is required' }).parse(
   Bun.env.GOOGLE_SERVICE_ACCOUNT_JSON,
@@ -590,7 +591,9 @@ async function main() {
   console.log(`Concurrency: ${concurrency}`);
   console.log(`Style: ${styleId}`);
 
-  const client = new JoyWebClient(JOY_WEB_GRAPHQL_URL, JOY_WEB_AUTH_TOKEN);
+  console.log('Authenticating…');
+  const userJwt = await exchangeIdTokenForUserJwt(JOY_WEB_GRAPHQL_URL, JOY_WEB_ID_TOKEN);
+  const client = new JoyWebClient(JOY_WEB_GRAPHQL_URL, userJwt);
 
   const stream = concurrency === 1;
   const outcomes: Outcome[] = new Array(eventIds.length);

@@ -58,6 +58,35 @@ export interface EventMediaPhoto {
   photo: { id: string; url: string; assetId?: string | null } | null;
 }
 
+export async function exchangeIdTokenForUserJwt(
+  graphqlUrl: string,
+  idToken: string,
+): Promise<string> {
+  const query = `query AuthenticateForGeneratedPhoto($idToken: String!) {
+    authenticateUser(authToken: $idToken) { userJWT }
+  }`;
+  let res;
+  try {
+    res = await axios.post(
+      graphqlUrl,
+      { query, variables: { idToken } },
+      { headers: { 'Content-Type': 'application/json' }, timeout: 30_000 },
+    );
+  } catch (err) {
+    const detail =
+      err instanceof AxiosError ? JSON.stringify(err.response?.data ?? err.message) : String(err);
+    throw new Error(`authenticateUser request failed: ${detail}`);
+  }
+  if (res.data?.errors) {
+    throw new Error(`authenticateUser GraphQL error: ${JSON.stringify(res.data.errors)}`);
+  }
+  const userJwt = res.data?.data?.authenticateUser?.userJWT;
+  if (typeof userJwt !== 'string' || !userJwt) {
+    throw new Error(`authenticateUser returned no userJWT: ${JSON.stringify(res.data)}`);
+  }
+  return userJwt;
+}
+
 export class JoyWebClient {
   private headers: Headers;
 
