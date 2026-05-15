@@ -16,6 +16,7 @@ import {
   type UploadMediaResponse,
 } from './lib/joyWebClient.ts';
 import { uploadBufferToFilestack } from './lib/filestackUpload.ts';
+import { buildRunHtmlReport, type EventReportRecord, type RunHeader } from './lib/runReport.ts';
 
 const debug = createDebugger('insert-generated-photo:app');
 
@@ -136,11 +137,25 @@ function parseArgs(): CliArgs {
 
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
+function formatHumanFilenameTimestamp(date: Date): string {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const yyyy = date.getFullYear();
+  const mm = pad(date.getMonth() + 1);
+  const dd = pad(date.getDate());
+  const hours24 = date.getHours();
+  const hours12 = hours24 % 12 === 0 ? 12 : hours24 % 12;
+  const meridiem = hours24 < 12 ? 'AM' : 'PM';
+  return `${yyyy}-${mm}-${dd}_${pad(hours12)}-${pad(date.getMinutes())}-${meridiem}`;
+}
+
 const RUN_LOG_LINES: string[] = [];
+
+let currentEventLogs: string[] | null = null;
 
 function logLine(line: string): void {
   console.log(line);
   RUN_LOG_LINES.push(line);
+  if (currentEventLogs) currentEventLogs.push(line);
 }
 
 function logKV(key: string, value: string | number | null | undefined): void {
@@ -203,6 +218,8 @@ type Outcome =
   | {
       eventId: string;
       eventHandle: string | null;
+      ownerFirstName?: string | null;
+      fianceeFirstName?: string | null;
       status: 'ok';
       sourcePhotoUrl: string;
       sourcePhotoOrigin: PhotoSource | 'n/a';
@@ -210,10 +227,23 @@ type Outcome =
       mediaPhotoId: string;
       mediaUrl: string;
     }
-  | { eventId: string; eventHandle: string | null; status: 'skipped'; reason: string }
   | {
       eventId: string;
       eventHandle: string | null;
+      ownerFirstName?: string | null;
+      fianceeFirstName?: string | null;
+      status: 'skipped';
+      reason: string;
+      sourcePhotoUrl?: string;
+      sourcePhotoOrigin?: PhotoSource;
+      mediaPhotoId?: string;
+      mediaUrl?: string;
+    }
+  | {
+      eventId: string;
+      eventHandle: string | null;
+      ownerFirstName?: string | null;
+      fianceeFirstName?: string | null;
       status: 'errored';
       reason: string;
       sourcePhotoUrl?: string;
@@ -245,7 +275,14 @@ async function processEvent(
   logKV('owner-first-name', ownerFirstName || null);
   logKV('fiancee-first-name', fianceeFirstName || null);
   if (!ownerFirstName || !fianceeFirstName) {
-    return { eventId, eventHandle, status: 'skipped', reason: 'not_a_wedding_event' };
+    return {
+      eventId,
+      eventHandle,
+      ownerFirstName: ownerFirstName || null,
+      fianceeFirstName: fianceeFirstName || null,
+      status: 'skipped',
+      reason: 'not_a_wedding_event',
+    };
   }
 
   const sourcePhoto = extractSourcePhotoUrl(event);
@@ -273,7 +310,18 @@ async function processEvent(
     if (!force) {
       logKV('media-photo-id', priorGenerated.mediaId);
       logKV('media-url', priorGenerated.url);
-      return { eventId, eventHandle, status: 'skipped', reason: 'already_generated' };
+      return {
+        eventId,
+        eventHandle,
+        ownerFirstName,
+        fianceeFirstName,
+        status: 'skipped',
+        reason: 'already_generated',
+        sourcePhotoUrl: sourcePhoto.url,
+        sourcePhotoOrigin: sourcePhoto.source,
+        mediaPhotoId: priorGenerated.mediaId,
+        mediaUrl: priorGenerated.url,
+      };
     }
     if (!commit) {
       logKV('force-delete-dry-run-media-id', priorGenerated.mediaId);
@@ -301,6 +349,8 @@ async function processEvent(
     return {
       eventId,
       eventHandle,
+      ownerFirstName,
+      fianceeFirstName,
       status: 'ok',
       sourcePhotoUrl: sourcePhoto.url,
       sourcePhotoOrigin: sourcePhoto.source,
@@ -436,6 +486,8 @@ async function processEvent(
   return {
     eventId,
     eventHandle,
+    ownerFirstName,
+    fianceeFirstName,
     status: 'ok',
     sourcePhotoUrl: sourcePhoto.url,
     sourcePhotoOrigin: sourcePhoto.source,
@@ -524,13 +576,18 @@ async function main() {
   const client = new JoyWebClient(JOY_WEB_GRAPHQL_URL, JOY_WEB_AUTH_TOKEN);
 
   const outcomes: Outcome[] = [];
+  const perEventLogs: string[][] = [];
   for (let i = 0; i < eventIds.length; i++) {
     if (delayMs > 0) await sleep(delayMs);
     const eventId = eventIds[i]!;
+    const eventLogs: string[] = [];
+    currentEventLogs = eventLogs;
     logLine(`\n────────── [${i + 1}/${eventIds.length}] ${eventId} ──────────`);
     const outcome = await processEvent(client, eventId, styleId, commit, force, saveImagesTo);
     outcomes.push(outcome);
     logOutcomeResult(outcome);
+    currentEventLogs = null;
+    perEventLogs.push(eventLogs);
   }
 
   const ok = outcomes.filter((o) => o.status === 'ok');
@@ -576,22 +633,74 @@ async function main() {
 
   mkdirSync(RUN_SUMMARIES_DIR, { recursive: true });
   const completedAt = new Date();
+  const flags = Bun.argv.slice(2).join(' ');
   const summary = buildRunSummary({
     startedAt,
     completedAt,
     commit,
     styleId,
     delayMs,
-    flags: Bun.argv.slice(2).join(' '),
+    flags,
     outcomes,
     logLines: RUN_LOG_LINES,
   });
-  const summaryPath = join(
-    RUN_SUMMARIES_DIR,
-    `${startedAt.toISOString().replace(/[:.]/g, '-')}.txt`,
-  );
+  const summaryBasename = formatHumanFilenameTimestamp(startedAt);
+  const summaryPath = join(RUN_SUMMARIES_DIR, `${summaryBasename}.txt`);
   writeFileSync(summaryPath, summary);
   console.log(`Wrote run summary to ${summaryPath}`);
+
+  const reportHeader: RunHeader = {
+    started: startedAt.toISOString(),
+    completed: completedAt.toISOString(),
+    duration: `${((completedAt.getTime() - startedAt.getTime()) / 1000).toFixed(1)}s`,
+    mode: commit ? 'COMMIT' : 'DRY-RUN',
+    flags: flags || '(none)',
+    style: styleId,
+    delay: `${delayMs}ms`,
+    total: `${outcomes.length}  ok=${ok.length}  skipped=${skipped.length}  errored=${errored.length}`,
+  };
+  const reportEvents: EventReportRecord[] = outcomes.map((o, i) => {
+    const logs = perEventLogs[i] ?? [];
+    const base = {
+      eventId: o.eventId,
+      handle: o.eventHandle,
+      ownerFirstName: o.ownerFirstName ?? null,
+      fianceeFirstName: o.fianceeFirstName ?? null,
+      status: o.status as string,
+      logLines: logs,
+    };
+    if (o.status === 'ok') {
+      return {
+        ...base,
+        sourceOrigin: o.sourcePhotoOrigin,
+        sourceUrl: o.sourcePhotoUrl,
+        mediaPhotoId: o.mediaPhotoId,
+        mediaUrl: o.mediaUrl,
+        reason: null,
+      };
+    }
+    if (o.status === 'skipped') {
+      return {
+        ...base,
+        sourceOrigin: o.sourcePhotoOrigin ?? null,
+        sourceUrl: o.sourcePhotoUrl ?? null,
+        mediaPhotoId: o.mediaPhotoId ?? null,
+        mediaUrl: o.mediaUrl ?? null,
+        reason: o.reason,
+      };
+    }
+    return {
+      ...base,
+      sourceOrigin: o.sourcePhotoOrigin ?? null,
+      sourceUrl: o.sourcePhotoUrl ?? null,
+      mediaPhotoId: null,
+      mediaUrl: null,
+      reason: o.reason,
+    };
+  });
+  const htmlPath = join(RUN_SUMMARIES_DIR, `${summaryBasename}.html`);
+  writeFileSync(htmlPath, buildRunHtmlReport({ header: reportHeader, events: reportEvents }));
+  console.log(`Wrote HTML report to ${htmlPath}`);
 
   if (errored.length > 0) process.exit(1);
 }

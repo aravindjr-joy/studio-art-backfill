@@ -109,7 +109,7 @@ export class JoyWebClient {
           ... on Photo { url }
         }
         firebasePhotoPath
-        eventDesign {
+        eventDesign(purpose: live) {
           activeWebsiteHeaderPresentationLayout {
             dataJSON
           }
@@ -223,10 +223,15 @@ const DEFAULT_PHOTO_URL_PREFIXES: ReadonlyArray<string> = [
   'https://withjoy.com/assets/public/wedding-website/designs-gallery/default-assets/',
   'https://withjoy.com/assets/public/marcom-prod/wedding-website-gallery/gallery_thumbnails/default_preview_images/',
   'https://withjoy.com/assets/public/defaultwebsitephotos/',
+  'https://withjoy.com/assets/public/createwedding/seed-wedding-templates/',
 ];
 
 const STOCK_PHOTO_FILENAME_PATTERNS: ReadonlyArray<RegExp> = [
   /^classic_wedding_/i,
+];
+
+const STOCK_PHOTO_URLS: ReadonlyArray<string> = [
+  'https://withjoy.com/media/ea08b6c9814abe8d85f1f6999d73bd9afb9536716d12561b3/Kyhc6muKTs6gtn2hF7t7_w_couple_marshall_lily_kissing_hidden_underpass%20copy.jpg',
 ];
 
 function pathBasename(pathname: string): string {
@@ -243,6 +248,8 @@ export function isDefaultPlaceholderUrl(url: string): boolean {
     if (parsed.searchParams.get('isDefault') === 'true') return true;
     const basename = pathBasename(parsed.pathname);
     if (STOCK_PHOTO_FILENAME_PATTERNS.some((re) => re.test(basename))) return true;
+    const bareUrl = `${parsed.origin}${parsed.pathname}`;
+    if (STOCK_PHOTO_URLS.includes(bareUrl)) return true;
   } catch {
     // Not a parseable absolute URL; fall through.
   }
