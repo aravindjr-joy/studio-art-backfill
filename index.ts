@@ -42,11 +42,14 @@ const DEFAULT_STYLE_ID: StyleID = 'martoon';
 
 const VALID_STYLES: ReadonlyArray<StyleID> = ['martoon', 'toon', 'doodle'];
 
+const DEFAULT_CONCURRENCY = 1;
+
 type CliArgs = {
   eventIds: string[];
   commit: boolean;
   force: boolean;
   delayMs: number;
+  concurrency: number;
   styleId: StyleID;
   resultsOutput: string;
   erroredOutput: string;
@@ -60,6 +63,7 @@ function parseArgs(): CliArgs {
   let commit = false;
   let force = false;
   let delayMs = DEFAULT_DELAY_MS;
+  let concurrency = DEFAULT_CONCURRENCY;
   let styleId: StyleID = DEFAULT_STYLE_ID;
   let resultsOutput = DEFAULT_RESULTS_OUTPUT;
   let erroredOutput = DEFAULT_ERRORED_OUTPUT;
@@ -89,6 +93,13 @@ function parseArgs(): CliArgs {
       delayMs = Number(value);
       if (!Number.isFinite(delayMs) || delayMs < 0) {
         throw new Error(`--delay-ms must be a non-negative number, got: ${value}`);
+      }
+    } else if (arg === '--concurrency') {
+      const value = argv[++i];
+      if (!value) throw new Error('--concurrency requires a value');
+      concurrency = Number(value);
+      if (!Number.isInteger(concurrency) || concurrency < 1) {
+        throw new Error(`--concurrency must be a positive integer, got: ${value}`);
       }
     } else if (arg === '--style-id') {
       const value = argv[++i];
@@ -127,6 +138,7 @@ function parseArgs(): CliArgs {
     commit,
     force,
     delayMs,
+    concurrency,
     styleId,
     resultsOutput,
     erroredOutput,
@@ -148,32 +160,34 @@ function formatHumanFilenameTimestamp(date: Date): string {
   return `${yyyy}-${mm}-${dd}_${pad(hours12)}-${pad(date.getMinutes())}-${meridiem}`;
 }
 
-const RUN_LOG_LINES: string[] = [];
-
-let currentEventLogs: string[] | null = null;
-
-function logLine(line: string): void {
-  console.log(line);
-  RUN_LOG_LINES.push(line);
-  if (currentEventLogs) currentEventLogs.push(line);
+class EventLogger {
+  readonly lines: string[] = [];
+  constructor(private stream: boolean) {}
+  line(s: string): void {
+    this.lines.push(s);
+    if (this.stream) console.log(s);
+  }
+  kv(key: string, value: string | number | null | undefined): void {
+    this.line(`  ${key}: ${value ?? '-'}`);
+  }
+  flushToConsole(): void {
+    if (this.stream) return;
+    for (const l of this.lines) console.log(l);
+  }
 }
 
-function logKV(key: string, value: string | number | null | undefined): void {
-  logLine(`  ${key}: ${value ?? '-'}`);
-}
-
-function logOutcomeResult(outcome: Outcome): void {
+function logOutcomeResult(outcome: Outcome, logger: EventLogger): void {
   if (outcome.status === 'ok') {
     const isDryRun = outcome.filestackUrl === '(dry-run)';
     if (!isDryRun) {
-      logKV('filestack-url', outcome.filestackUrl);
-      logKV('media-photo-id', outcome.mediaPhotoId);
-      logKV('media-url', outcome.mediaUrl);
+      logger.kv('filestack-url', outcome.filestackUrl);
+      logger.kv('media-photo-id', outcome.mediaPhotoId);
+      logger.kv('media-url', outcome.mediaUrl);
     }
-    logKV('status', isDryRun ? 'ok (dry-run)' : 'ok');
+    logger.kv('status', isDryRun ? 'ok (dry-run)' : 'ok');
   } else {
-    logKV('status', outcome.status);
-    logKV('reason', outcome.reason);
+    logger.kv('status', outcome.status);
+    logger.kv('reason', outcome.reason);
   }
 }
 
@@ -257,6 +271,7 @@ async function processEvent(
   commit: boolean,
   force: boolean,
   saveImagesTo: string | null,
+  logger: EventLogger,
 ): Promise<Outcome> {
   let event;
   try {
@@ -268,12 +283,12 @@ async function processEvent(
     return { eventId, eventHandle: null, status: 'skipped', reason: 'event_not_found' };
   }
   const eventHandle = event.website ?? null;
-  logKV('handle', eventHandle);
+  logger.kv('handle', eventHandle);
 
   const ownerFirstName = event.info?.ownerFirstName?.trim() ?? '';
   const fianceeFirstName = event.info?.fianceeFirstName?.trim() ?? '';
-  logKV('owner-first-name', ownerFirstName || null);
-  logKV('fiancee-first-name', fianceeFirstName || null);
+  logger.kv('owner-first-name', ownerFirstName || null);
+  logger.kv('fiancee-first-name', fianceeFirstName || null);
   if (!ownerFirstName || !fianceeFirstName) {
     return {
       eventId,
@@ -289,8 +304,8 @@ async function processEvent(
   if (!sourcePhoto) {
     return { eventId, eventHandle, status: 'skipped', reason: 'no_source_photo' };
   }
-  logKV('source-origin', sourcePhoto.source);
-  logKV('source-url', sourcePhoto.url);
+  logger.kv('source-origin', sourcePhoto.source);
+  logger.kv('source-url', sourcePhoto.url);
 
   const targetFilename = generatedFilenameSuffix(eventId);
 
@@ -308,8 +323,8 @@ async function processEvent(
   const priorGenerated = existingMedia.find((m) => m.assetId.startsWith(GENERATED_FILENAME_PREFIX));
   if (priorGenerated) {
     if (!force) {
-      logKV('media-photo-id', priorGenerated.mediaId);
-      logKV('media-url', priorGenerated.url);
+      logger.kv('media-photo-id', priorGenerated.mediaId);
+      logger.kv('media-url', priorGenerated.url);
       return {
         eventId,
         eventHandle,
@@ -324,8 +339,8 @@ async function processEvent(
       };
     }
     if (!commit) {
-      logKV('force-delete-dry-run-media-id', priorGenerated.mediaId);
-      logKV('force-delete-dry-run-url', priorGenerated.url);
+      logger.kv('force-delete-dry-run-media-id', priorGenerated.mediaId);
+      logger.kv('force-delete-dry-run-url', priorGenerated.url);
     } else {
       try {
         await client.deleteMedia(priorGenerated.mediaId);
@@ -339,13 +354,13 @@ async function processEvent(
           sourcePhotoOrigin: sourcePhoto.source,
         };
       }
-      logKV('force-deleted-media-id', priorGenerated.mediaId);
-      logKV('force-deleted-url', priorGenerated.url);
+      logger.kv('force-deleted-media-id', priorGenerated.mediaId);
+      logger.kv('force-deleted-url', priorGenerated.url);
     }
   }
 
   if (!commit) {
-    logKV('dry-run-would-upload-as', targetFilename);
+    logger.kv('dry-run-would-upload-as', targetFilename);
     return {
       eventId,
       eventHandle,
@@ -390,7 +405,7 @@ async function processEvent(
     mkdirSync(eventDir, { recursive: true });
     const diskPath = join(eventDir, targetFilename);
     writeFileSync(diskPath, buffer);
-    logKV('saved-to-disk', diskPath);
+    logger.kv('saved-to-disk', diskPath);
   }
 
   let credentials;
@@ -551,6 +566,7 @@ async function main() {
     commit,
     force,
     delayMs,
+    concurrency,
     styleId,
     resultsOutput,
     erroredOutput,
@@ -571,23 +587,61 @@ async function main() {
   );
   if (!commit) console.log('DRY-RUN (pass --commit to generate + upload)');
   console.log(`Throttle: ${delayMs}ms before processing each event`);
+  console.log(`Concurrency: ${concurrency}`);
   console.log(`Style: ${styleId}`);
 
   const client = new JoyWebClient(JOY_WEB_GRAPHQL_URL, JOY_WEB_AUTH_TOKEN);
 
-  const outcomes: Outcome[] = [];
-  const perEventLogs: string[][] = [];
-  for (let i = 0; i < eventIds.length; i++) {
-    if (delayMs > 0) await sleep(delayMs);
-    const eventId = eventIds[i]!;
-    const eventLogs: string[] = [];
-    currentEventLogs = eventLogs;
-    logLine(`\n────────── [${i + 1}/${eventIds.length}] ${eventId} ──────────`);
-    const outcome = await processEvent(client, eventId, styleId, commit, force, saveImagesTo);
-    outcomes.push(outcome);
-    logOutcomeResult(outcome);
-    currentEventLogs = null;
-    perEventLogs.push(eventLogs);
+  const stream = concurrency === 1;
+  const outcomes: Outcome[] = new Array(eventIds.length);
+  const perEventLogs: string[][] = new Array(eventIds.length);
+  let nextIdx = 0;
+  let completedCount = 0;
+  const total = eventIds.length;
+
+  async function worker(): Promise<void> {
+    while (true) {
+      const i = nextIdx++;
+      if (i >= total) return;
+      if (delayMs > 0) await sleep(delayMs);
+      const eventId = eventIds[i]!;
+      const logger = new EventLogger(stream);
+
+      // Stream mode (concurrency=1): banner at start; completion order == input order.
+      if (stream) {
+        const count = ++completedCount;
+        logger.line(`\n────────── [${count}/${total}] ${eventId} ──────────`);
+      }
+
+      const outcome = await processEvent(
+        client,
+        eventId,
+        styleId,
+        commit,
+        force,
+        saveImagesTo,
+        logger,
+      );
+      logOutcomeResult(outcome, logger);
+
+      // Parallel mode: assign completion-order index at flush time so terminal
+      // counts go 1, 2, 3, ... monotonically as events finish.
+      if (!stream) {
+        const count = ++completedCount;
+        logger.lines.unshift(`\n────────── [${count}/${total}] ${eventId} ──────────`);
+      }
+
+      logger.flushToConsole();
+      outcomes[i] = outcome;
+      perEventLogs[i] = logger.lines;
+    }
+  }
+
+  await Promise.all(Array.from({ length: concurrency }, () => worker()));
+
+  const RUN_LOG_LINES: string[] = [];
+  for (const lines of perEventLogs) {
+    if (lines) RUN_LOG_LINES.push(...lines);
   }
 
   const ok = outcomes.filter((o) => o.status === 'ok');

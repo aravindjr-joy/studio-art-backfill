@@ -63,7 +63,8 @@ bun run index.ts --file ./events.txt --commit --save-images-to ./gen-images
 | `--event-ids LIST`  | —                | Comma-separated eventIds (alternative to `--file`).         |
 | `--commit`          | dry-run          | Actually generate, upload, and save.                        |
 | `--force`           | off              | Delete any existing photo whose `assetId` starts with `studio-gouache-` before generating a new one. Combine with `--commit` to actually delete; in dry-run mode it just logs which mediaId/url would be deleted. |
-| `--delay-ms N`      | 2000             | Delay applied *before* processing each event.               |
+| `--delay-ms N`      | 2000             | Delay applied *before* processing each event. With `--concurrency > 1`, applied per worker (so effective inter-event spacing is roughly `delayMs / concurrency`). |
+| `--concurrency N`   | 1                | Process N events in parallel. With `N > 1`, each event's terminal output is buffered and flushed as one block when that event completes, so banners stay contiguous. Start at 3-5 against a fresh Gemini quota; higher values surface rate-limit errors faster. |
 | `--style-id ID`     | `martoon`        | Gemini style (`martoon`, `toon`, `doodle`).                 |
 | `--results-output`  | `./results.txt`  | Output path for ok rows.                                    |
 | `--errored-output`  | `./errored.txt`  | Output path for errored rows.                               |
@@ -127,6 +128,13 @@ e878153e-...  handle=geralt-and-yennifer  ok       source-origin=headerLayout  f
 
 At the end of the run a one-line summary is printed (`Total / ok / skipped /
 errored`).
+
+With `--concurrency > 1`, each event's lines are buffered and flushed as one
+contiguous block when that event completes — so banners and their key/value
+pairs never interleave between workers, but the terminal order reflects
+completion order rather than input order. The input position is still shown
+in each banner's `[i/N]` index, and the run-summary `.txt` and `.html` keep
+events in input order regardless.
 
 ## Output files
 
