@@ -159,7 +159,7 @@ per-run `.txt` files get overwritten.
 
 ## Outcome reasons
 
-- `skipped`: `event_not_found`, `no_source_photo`, `already_generated`
+- `skipped`: `event_not_found`, `not_a_wedding_event`, `no_source_photo`, `already_generated`
 - `errored`: `fetch_event_failed`, `fetch_event_media_failed`,
   `gemini_failed:<finishReason>`, `filestack_credentials_failed`,
   `filestack_upload_failed`, `upload_media_failed`, `rehost_poll_failed`,

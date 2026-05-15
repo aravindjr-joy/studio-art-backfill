@@ -9,6 +9,10 @@ export interface SupportedHeaderPhotoLayoutSchema {
 export interface EventByIdResponse {
   id: string;
   website?: string | null;
+  info?: {
+    ownerFirstName?: string | null;
+    fianceeFirstName?: string | null;
+  } | null;
   photo?: { id: string; url: string } | null;
   photoV2?: { __typename?: string; url?: string | null } | null;
   firebasePhotoPath?: string | null;
@@ -94,6 +98,10 @@ export class JoyWebClient {
       eventById(id: $id) {
         id
         website
+        info {
+          ownerFirstName
+          fianceeFirstName
+        }
         photo { id url }
         photoV2 {
           __typename

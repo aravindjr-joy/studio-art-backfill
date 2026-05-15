@@ -240,6 +240,14 @@ async function processEvent(
   const eventHandle = event.website ?? null;
   logKV('handle', eventHandle);
 
+  const ownerFirstName = event.info?.ownerFirstName?.trim() ?? '';
+  const fianceeFirstName = event.info?.fianceeFirstName?.trim() ?? '';
+  logKV('owner-first-name', ownerFirstName || null);
+  logKV('fiancee-first-name', fianceeFirstName || null);
+  if (!ownerFirstName || !fianceeFirstName) {
+    return { eventId, eventHandle, status: 'skipped', reason: 'not_a_wedding_event' };
+  }
+
   const sourcePhoto = extractSourcePhotoUrl(event);
   if (!sourcePhoto) {
     return { eventId, eventHandle, status: 'skipped', reason: 'no_source_photo' };
@@ -263,6 +271,8 @@ async function processEvent(
   const priorGenerated = existingMedia.find((m) => m.assetId.startsWith(GENERATED_FILENAME_PREFIX));
   if (priorGenerated) {
     if (!force) {
+      logKV('media-photo-id', priorGenerated.mediaId);
+      logKV('media-url', priorGenerated.url);
       return { eventId, eventHandle, status: 'skipped', reason: 'already_generated' };
     }
     if (!commit) {
