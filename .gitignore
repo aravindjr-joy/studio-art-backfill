@@ -14,6 +14,7 @@ run-summaries/
 
 # Generated images on disk (regenerable; can be large)
 gen-images/
+gen-images*
 faulty-generated-images/
 
 # Operator input lists (often contain PII / per-cohort data)
