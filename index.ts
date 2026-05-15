@@ -593,7 +593,10 @@ async function main() {
 
   console.log('Authenticating…');
   const userJwt = await exchangeIdTokenForUserJwt(JOY_WEB_GRAPHQL_URL, JOY_WEB_ID_TOKEN);
+  console.log('Authenticated.');
   const client = new JoyWebClient(JOY_WEB_GRAPHQL_URL, userJwt);
+
+  console.log(`\nProcessing ${eventIds.length} event(s)…`);
 
   const stream = concurrency === 1;
   const outcomes: Outcome[] = new Array(eventIds.length);

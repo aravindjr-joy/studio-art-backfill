@@ -10,7 +10,7 @@ node_modules/
 results.txt
 errored.txt
 skipped.txt
-run-summaries/
+run-summaries*
 
 # Generated images on disk (regenerable; can be large)
 gen-images/
