@@ -96,7 +96,7 @@ A candidate URL is also filtered out if its query string contains
 
 A candidate URL is also filtered out if its filename (the last segment of
 the URL path) matches a known stock-photo filename pattern. Currently:
-`classic_wedding_*` (case-insensitive). Patterns live in
+`classic_wedding_*` and `-unsplash` (case-insensitive). Patterns live in
 `STOCK_PHOTO_FILENAME_PATTERNS` at the bottom of `lib/joyWebClient.ts` —
 add new regexes there as more stock-photo families turn up.
 
