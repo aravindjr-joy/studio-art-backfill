@@ -24,10 +24,6 @@ export interface EventReportRecord {
 }
 
 const PLACEHOLDER_DATE = 'August 13, 2026';
-const PLACEHOLDER_VENUE = '4 pm at The Falconwood at Beaver Island State Park';
-const PLACEHOLDER_ADDRESS = '107 Beaver Is Pk Rd | , New York';
-const CARD_FRAME_URL =
-  'https://withjoy.com/media/paper/7abbd6d4-6138-4f98-8065-878e2924486c.8e80cadb847df7e1f42c5fd977b0efad52fbe3c8.png?rendition=medium';
 
 export function escapeHtml(value: string): string {
   return value
@@ -45,10 +41,10 @@ function isUsableUrl(url: string | null): boolean {
 function namesLine(event: EventReportRecord): string {
   const a = event.ownerFirstName ?? '';
   const b = event.fianceeFirstName ?? '';
-  if (a && b) return `${a} & ${b}`.toUpperCase();
-  if (a) return a.toUpperCase();
-  if (b) return b.toUpperCase();
-  return 'NAME1 & NAME2';
+  if (a && b) return `${a} + ${b}`;
+  if (a) return a;
+  if (b) return b;
+  return 'Name1 + Name2';
 }
 
 function eventCardHtml(event: EventReportRecord): string {
@@ -93,12 +89,9 @@ function eventCardHtml(event: EventReportRecord): string {
               <div class="card-photo-layer">
                 <img src="${escapeHtml(mediaUrl)}" alt="Generated photo for ${escapeHtml(event.eventId)}" loading="lazy" />
               </div>
-              <div class="card-frame-layer"></div>
-              <div class="card-tag-layer">the wedding of</div>
+              <div class="card-tag-layer">SAVE THE DATE</div>
               <div class="card-names-layer">${names}</div>
-              <div class="card-details-layer">${escapeHtml(PLACEHOLDER_DATE)}
-${escapeHtml(PLACEHOLDER_VENUE)}
-${escapeHtml(PLACEHOLDER_ADDRESS)}</div>
+              <div class="card-details-layer">${escapeHtml(PLACEHOLDER_DATE)}</div>
             </div>
           </div>
         </a>
@@ -146,7 +139,7 @@ export function buildRunHtmlReport(input: { header: RunHeader; events: EventRepo
   <title>Run Summary — ${escapeHtml(header.started)}</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;1,400&family=Jost:wght@400&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;1,400&family=EB+Garamond:ital@1&family=Great+Vibes&display=swap">
   <style>
     :root {
       color-scheme: light;
@@ -204,19 +197,20 @@ export function buildRunHtmlReport(input: { header: RunHeader; events: EventRepo
     .card-mock-link { display: block; text-decoration: none; color: inherit; }
     .card-mock {
       container-type: inline-size;
-      aspect-ratio: 378 / 522;
+      aspect-ratio: 5 / 7;
       width: 100%;
       background: #ffffff;
       position: relative;
       overflow: hidden;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.18), 0 1px 4px rgba(0,0,0,0.10);
     }
     .card-canvas { position: absolute; inset: 0; }
     .card-photo-layer {
       position: absolute;
-      left: 16.402%;
-      top: 7.977%;
-      width: 62.434%;
-      height: 59.004%;
+      left: 13.889%;
+      top: 15.675%;
+      width: 72.222%;
+      height: 63.492%;
       overflow: hidden;
     }
     .card-photo-layer img {
@@ -228,58 +222,43 @@ export function buildRunHtmlReport(input: { header: RunHeader; events: EventRepo
       border-radius: 0;
       background: transparent;
     }
-    .card-frame-layer {
-      position: absolute;
-      left: -2.381%;
-      top: -1.724%;
-      width: 100%;
-      height: 100%;
-      background-image: url("${CARD_FRAME_URL}");
-      background-size: cover;
-      background-position: center;
-      background-repeat: no-repeat;
-      pointer-events: none;
-    }
     .card-tag-layer,
     .card-names-layer,
     .card-details-layer {
       position: absolute;
+      left: 8.333%;
+      width: 83.333%;
       color: rgb(0, 0, 0);
       text-align: center;
       white-space: pre-wrap;
       word-break: break-word;
     }
     .card-tag-layer {
-      left: 33.069%;
-      top: 4.406%;
-      width: 29.101%;
-      font-family: 'Playfair Display', Georgia, serif;
-      font-style: italic;
+      top: 7.937%;
+      font-family: 'Cormorant Garamond', Georgia, serif;
+      font-style: normal;
       font-weight: 400;
-      font-size: 2.381cqi;
-      line-height: 1.33;
-      letter-spacing: 0.08em;
+      font-size: 5cqi;
+      line-height: 1.21;
+      letter-spacing: 0.3em;
     }
     .card-names-layer {
-      left: 7.937%;
-      top: 72.797%;
-      width: 79.365%;
-      font-family: 'Playfair Display', Georgia, serif;
+      top: 80.952%;
+      font-family: 'Great Vibes', cursive;
       font-weight: 400;
-      font-size: 4.497cqi;
-      line-height: 1.33;
-      letter-spacing: 0.1em;
-      text-transform: uppercase;
+      font-size: 8.333cqi;
+      line-height: 1.5;
+      letter-spacing: 0em;
+      text-transform: none;
     }
     .card-details-layer {
-      left: 7.937%;
-      top: 78.736%;
-      width: 79.365%;
-      font-family: 'Jost', system-ui, sans-serif;
+      top: 91.071%;
+      font-family: 'EB Garamond', Georgia, serif;
+      font-style: italic;
       font-weight: 400;
-      font-size: 2.646cqi;
-      line-height: 1.8;
-      letter-spacing: 0.1em;
+      font-size: 2.778cqi;
+      line-height: 1.21;
+      letter-spacing: 0.2em;
     }
     @media (max-width: 600px) {
       .images { grid-template-columns: 1fr; }
