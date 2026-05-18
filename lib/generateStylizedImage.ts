@@ -2,7 +2,7 @@ import axios from "axios";
 import sharp from "sharp";
 import { type Content, GoogleGenAI, Modality, type Part } from "@google/genai";
 
-const MARGIN_FRACTION = 0.1;
+const MARGIN_FRACTION = 0.05;
 
 const SERVICE_ACCOUNT_JSON = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
 

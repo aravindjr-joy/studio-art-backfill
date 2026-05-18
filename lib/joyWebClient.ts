@@ -257,6 +257,7 @@ const DEFAULT_PHOTO_URL_PREFIXES: ReadonlyArray<string> = [
 
 const STOCK_PHOTO_FILENAME_PATTERNS: ReadonlyArray<RegExp> = [
   /^classic_wedding_/i,
+  /-unsplash/i,
 ];
 
 const STOCK_PHOTO_URLS: ReadonlyArray<string> = [
