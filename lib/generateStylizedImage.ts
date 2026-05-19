@@ -84,7 +84,7 @@ export async function generateStylizedImage(
           "Preserve the facial expressions and emotions of the people in the second image into the output image.",
           "Preserve the relative position and pose of the people in the second image into the output image.",
           "If someone is on the left of someone else, do not move them to right and vice versa.",
-          "Background must be white (#ffffff).",
+          // "Background must be white (#ffffff).",
           "The output artwork should fill the frame (no signficant padding) and artistically transition to white at all four edges.",
           "If the image is upside down, flip it.",
         ].join("\n"),
