@@ -71,6 +71,42 @@ bun run index.ts --file ./events.txt --commit --save-images-to ./gen-images
 | `--skipped-output`  | `./skipped.txt`  | Output path for skipped rows.                               |
 | `--save-images-to DIR` | —             | If set, writes each generated PNG to `DIR/{eventId}/{filename}`. Useful for eyeballing output without checking the gallery. Directories are created if missing. |
 
+## Deleting generated photos
+
+Use `delete-generated-photos.ts` to remove `studio-gouache-*` photos from
+specific events without re-generating them (unlike `--force` in the main
+script, which deletes and immediately regenerates).
+
+```sh
+# Dry-run (default — shows what would be deleted)
+bun run delete-generated-photos.ts --file ./events-to-delete.txt
+bun run delete-generated-photos.ts --event-urls "https://withjoy.com/angela-and-daniel-sep-26/edit,https://withjoy.com/foo-and-bar/edit"
+
+# Actually delete
+bun run delete-generated-photos.ts --file ./events-to-delete.txt --commit
+```
+
+Input file is one event URL per line; `#` lines are ignored. URLs can be full
+(`https://withjoy.com/{handle}/edit`) or bare handles (`angela-and-daniel-sep-26`).
+See [events-to-delete.txt.example](events-to-delete.txt.example).
+
+| Flag               | Default | Notes                                              |
+|--------------------|---------|----------------------------------------------------|
+| `--file PATH`      | —       | Path to a newline-delimited event-URLs file.       |
+| `--event-urls LIST`| —       | Comma-separated event URLs (alternative to `--file`). |
+| `--commit`         | dry-run | Actually call `deleteMedia` for each match.        |
+
+Terminal output:
+
+```
+────────── angela-and-daniel-sep-26 ──────────
+  would delete: mediaId=abc123  url=https://withjoy.com/media/.../studio-gouache-...
+
+Summary: 2 processed, 0 deleted (1 would delete), 0 errored
+```
+
+Exits non-zero if any event errored.
+
 ## Source photo selection
 
 For each event, the script picks a source photo by trying these tiers in

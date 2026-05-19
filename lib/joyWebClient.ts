@@ -179,6 +179,34 @@ export class JoyWebClient {
       );
   }
 
+  async getEventMediaItemsByHandle(
+    handle: string,
+  ): Promise<Array<{ mediaId: string; assetId: string; url: string }>> {
+    const query = `query GetEventMediaByHandleForDelete($handle: String!) {
+      eventByName(name: $handle) {
+        id
+        media {
+          ... on MediaPhoto {
+            id
+            photo { id assetId url }
+          }
+        }
+      }
+    }`;
+    const data = await this.query<{
+      eventByName: { id: string; media?: Array<EventMediaPhoto> | null } | null;
+    }>(query, { handle }, 'getEventMediaByHandle');
+    const media = data.eventByName?.media ?? [];
+    return media
+      .map((m) => ({ mediaId: m?.id, assetId: m?.photo?.assetId, url: m?.photo?.url }))
+      .filter(
+        (m): m is { mediaId: string; assetId: string; url: string } =>
+          typeof m.mediaId === 'string' && m.mediaId.length > 0 &&
+          typeof m.assetId === 'string' && m.assetId.length > 0 &&
+          typeof m.url === 'string' && m.url.length > 0,
+      );
+  }
+
   async deleteMedia(mediaId: string): Promise<void> {
     const query = `mutation DeleteMediaForGeneratedPhoto($id: ID!) {
       deleteMedia(id: $id)
