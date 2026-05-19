@@ -12,15 +12,17 @@ errored.txt
 skipped.txt
 run-summaries*
 
-# Generated images on disk (regenerable; can be large)
+# Generated images on disk (can be re-created; can be large)
 gen-images/
 gen-images*
 faulty-generated-images/
 
 # Operator input lists (often contain PII / per-cohort data)
 events.txt
+events-to-delete.txt
 *.csv
 !events.txt.example
+!events-to-delete.txt.example
 
 # OS / editor noise
 .DS_Store
